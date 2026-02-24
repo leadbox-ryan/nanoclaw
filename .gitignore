@@ -21,6 +21,10 @@ groups/global/*
 # Secrets
 *.keys.json
 .env
+config/
+
+# Claude Code local settings
+.claude/settings.local.json
 
 # OS
 .DS_Store
