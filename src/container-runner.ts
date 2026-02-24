@@ -183,7 +183,7 @@ function buildVolumeMounts(
  * Secrets are never written to disk or mounted as files.
  */
 function readSecrets(): Record<string, string> {
-  return readEnvFile([
+  const secrets = readEnvFile([
     'CLAUDE_CODE_OAUTH_TOKEN',
     'ANTHROPIC_API_KEY',
     'HUBSPOT_API_KEY',
@@ -194,6 +194,21 @@ function readSecrets(): Record<string, string> {
     'AZURE_CLIENT_SECRET',
     'GOOGLE_APPLICATION_CREDENTIALS',
   ]);
+
+  // GOOGLE_APPLICATION_CREDENTIALS is a file path on the host — read the file
+  // contents so the container receives the JSON inline (the file isn't mounted).
+  if (secrets.GOOGLE_APPLICATION_CREDENTIALS) {
+    const credPath = secrets.GOOGLE_APPLICATION_CREDENTIALS;
+    try {
+      const absPath = path.isAbsolute(credPath) ? credPath : path.join(process.cwd(), credPath);
+      secrets.GOOGLE_APPLICATION_CREDENTIALS = fs.readFileSync(absPath, 'utf-8');
+    } catch (err) {
+      logger.warn({ path: credPath, err }, 'Failed to read Google credentials file');
+      delete secrets.GOOGLE_APPLICATION_CREDENTIALS;
+    }
+  }
+
+  return secrets;
 }
 
 function buildContainerArgs(mounts: VolumeMount[], containerName: string): string[] {

@@ -9,10 +9,24 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { FirebaseApi } from './firebase-api.js';
 
-const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-if (!credentialsPath) {
+import fs from 'fs';
+import path from 'path';
+
+const credentialsValue = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (!credentialsValue) {
   console.error('GOOGLE_APPLICATION_CREDENTIALS not set');
   process.exit(1);
+}
+
+// Credentials may be a file path or inline JSON content.
+// If it looks like JSON, write to a temp file so the Google SDKs can read it.
+let credentialsPath: string;
+if (credentialsValue.trim().startsWith('{')) {
+  const tmpPath = '/tmp/gcp-credentials.json';
+  fs.writeFileSync(tmpPath, credentialsValue);
+  credentialsPath = tmpPath;
+} else {
+  credentialsPath = credentialsValue;
 }
 
 const firebase = new FirebaseApi(credentialsPath);
