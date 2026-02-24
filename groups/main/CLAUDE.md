@@ -59,6 +59,10 @@ No ## headings. No [links](url). No **double stars**.
 
 This is the **main channel**, which has elevated privileges.
 
+## Self-Update
+
+You can add, modify, or remove your own MCP tools. Your source code at `/app/src/` is writable and recompiled each session. Read `/workspace/project/docs/AGENT_SELF_UPDATE.md` for the full guide before making changes.
+
 ## Container Mounts
 
 Main has read-only access to the project and read-write access to its group folder:
