@@ -354,6 +354,14 @@ function waitForIpcMessage(): Promise<string | null> {
  * allowing agent teams subagents to run to completion.
  * Also pipes IPC messages into the stream during the query.
  */
+interface McpPaths {
+  nanoclaw: string;
+  hubspot: string;
+  github: string;
+  azure: string;
+  firebase: string;
+}
+
 async function runQuery(
   prompt: string,
   sessionId: string | undefined,
@@ -362,6 +370,7 @@ async function runQuery(
   containerInput: ContainerInput,
   sdkEnv: Record<string, string | undefined>,
   resumeAt?: string,
+  mcpPaths?: McpPaths,
 ): Promise<{ newSessionId?: string; lastAssistantUuid?: string; closedDuringQuery: boolean }> {
   const stream = new MessageStream();
   stream.push(prompt);
@@ -435,6 +444,9 @@ async function runQuery(
         'NotebookEdit',
         'mcp__nanoclaw__*',
         ...(containerInput.secrets?.HUBSPOT_API_KEY ? ['mcp__hubspot__*'] : []),
+        ...(containerInput.secrets?.GITHUB_TOKEN ? ['mcp__github__*'] : []),
+        ...(containerInput.secrets?.AZURE_CLIENT_ID ? ['mcp__azure__*'] : []),
+        ...(containerInput.secrets?.GOOGLE_APPLICATION_CREDENTIALS ? ['mcp__firebase__*'] : []),
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -456,6 +468,35 @@ async function runQuery(
             args: [hubspotMcpPath],
             env: {
               HUBSPOT_API_KEY: containerInput.secrets.HUBSPOT_API_KEY,
+            },
+          },
+        } : {}),
+        ...(containerInput.secrets?.GITHUB_TOKEN && mcpPaths ? {
+          github: {
+            command: 'node',
+            args: [mcpPaths.github],
+            env: {
+              GITHUB_TOKEN: containerInput.secrets.GITHUB_TOKEN,
+            },
+          },
+        } : {}),
+        ...(containerInput.secrets?.AZURE_CLIENT_ID && mcpPaths ? {
+          azure: {
+            command: 'node',
+            args: [mcpPaths.azure],
+            env: {
+              AZURE_TENANT_ID: containerInput.secrets.AZURE_TENANT_ID || '',
+              AZURE_CLIENT_ID: containerInput.secrets.AZURE_CLIENT_ID,
+              AZURE_CLIENT_SECRET: containerInput.secrets.AZURE_CLIENT_SECRET || '',
+            },
+          },
+        } : {}),
+        ...(containerInput.secrets?.GOOGLE_APPLICATION_CREDENTIALS && mcpPaths ? {
+          firebase: {
+            command: 'node',
+            args: [mcpPaths.firebase],
+            env: {
+              GOOGLE_APPLICATION_CREDENTIALS: containerInput.secrets.GOOGLE_APPLICATION_CREDENTIALS,
             },
           },
         } : {}),
@@ -529,6 +570,9 @@ async function main(): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const mcpServerPath = path.join(__dirname, 'ipc-mcp-stdio.js');
   const hubspotMcpPath = path.join(__dirname, 'hubspot-mcp-stdio.js');
+  const githubMcpPath = path.join(__dirname, 'github-mcp-stdio.js');
+  const azureMcpPath = path.join(__dirname, 'azure-mcp-stdio.js');
+  const firebaseMcpPath = path.join(__dirname, 'firebase-mcp-stdio.js');
 
   let sessionId = containerInput.sessionId;
   fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
@@ -553,7 +597,13 @@ async function main(): Promise<void> {
     while (true) {
       log(`Starting query (session: ${sessionId || 'new'}, resumeAt: ${resumeAt || 'latest'})...`);
 
-      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, hubspotMcpPath, containerInput, sdkEnv, resumeAt);
+      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, hubspotMcpPath, containerInput, sdkEnv, resumeAt, {
+        nanoclaw: mcpServerPath,
+        hubspot: hubspotMcpPath,
+        github: githubMcpPath,
+        azure: azureMcpPath,
+        firebase: firebaseMcpPath,
+      });
       if (queryResult.newSessionId) {
         sessionId = queryResult.newSessionId;
       }
